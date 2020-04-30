@@ -26,9 +26,9 @@ GOOD_WORDS = ["entry",
               "strategy",
               "chest"]
 
-GOOD_WORDS = ["world",
-              "flight",
-              "chest"]
+# GOOD_WORDS = ["world",
+#               "flight",
+#               "chest"]
 
 netural_words = ["student",
                  "movie",
@@ -59,18 +59,24 @@ vocabulary = EMBEDDINGS.index2entity
 
 # check_capacity()
 
-def reduceVocabulary():
-    global vocabulary
+def reduceVocabulary(v):
     # Keep only legitimate words in vocabulary
-    vocabulary = list(filter(lambda x: "#" not in x and "_" not in x and "_" not in x, vocabulary))
-    vocabulary = list(filter(lambda x: "/" not in x, vocabulary))
-    vocabulary = list(filter(lambda x: "@" not in x, vocabulary))
-    vocabulary = list(filter(lambda x: "." not in x, vocabulary))
-    vocabulary = list(filter(lambda x: x.lower() not in board_words, vocabulary))
-    vocabulary = list(filter(lambda x: not x.isupper(), vocabulary))
-    vocabulary = list(filter(lambda x: not any(c.isupper() for c in x), vocabulary))
+    v = list(filter(lambda x: "#" not in x and "_" not in x and "_" not in x, v))
+    v = list(filter(lambda x: "/" not in x, v))
+    v = list(filter(lambda x: "@" not in x, v))
+    v = list(filter(lambda x: "." not in x, v))
+    v = list(filter(lambda x: x.lower() not in board_words, v))
+    v = list(filter(lambda x: not x.isupper(), v))
+    v = list(filter(lambda x: not any(c.isupper() for c in x), v))
+
+    v_appear_on_board = []
+    for substring in board_words:
+        v_appear_on_board.extend([string for string in v if substring in string])
+
+    v = list(filter(lambda x: x not in v_appear_on_board, v))
     # Keep the maximal amount words in the vocabulary
-    vocabulary = vocabulary[:20000]
+    v = v[:20000]
+    return v
 
 
 def setBinaryMatrix():
@@ -104,7 +110,9 @@ def wordsAgentAimsFor(combinations, best_combination):
 
 
 def main():
-    reduceVocabulary()
+    global vocabulary
+    global o_vocabulary
+    vocabulary = reduceVocabulary(o_vocabulary)
 
     # set up my words vectors as tensors
     my_words = torch.tensor(EMBEDDINGS[GOOD_WORDS]).to(device)
@@ -145,6 +153,15 @@ def main():
         the_word = vocabulary[word_index]
         print(the_word)
 
+        # for x in board_words:
+        #     if (the_word in x) or (x in the_word):
+        #         print("!!!",x)
+        #         illeagal_word = True
+        #         break
+        # if illeagal_word:
+        #     continue
+
+
         # get word vector
         word_vector = EMBEDDINGS[the_word]
 
@@ -160,7 +177,6 @@ def main():
 
         if minimal_similarity > maximalSimilarity2BedWords:
             found_word = True
-            if any(the_word in x or x in the_word for x in aimed_words): continue
             break
 
     assert found_word
