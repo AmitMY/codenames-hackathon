@@ -1,3 +1,4 @@
+from typing import List, Tuple
 import numpy as np
 import torch
 import itertools
@@ -14,47 +15,48 @@ class CodeNamesAgent(object):
                  cuda_device: int = 0,
                  gensim_embeddings: str = 'GoogleNews-vectors-negative300.bin',
                  maximal_combination_size: int = 999) -> None:
-        self.gensim_embeddings = gensim_embeddings
         self.MAXIMAL_SIZE_OF_COMBINATIONS = maximal_combination_size
-        self.embeddings = gensim.models.KeyedVectors.load_word2vec_format(self.gensim_embeddings, binary=True)
+        self.embeddings = gensim.models.KeyedVectors.load_word2vec_format(gensim_embeddings, binary=True)
 
         self.device = torch.device(cuda_device)
         self.vocabulary = self.embeddings.index2word
 
+    def get_clue(self, good_words: List[str],
+                 bad_words: List[str] = [],
+                 neutral_words: List[str] = [],
+                 mine: str = None) -> Tuple[str, int]:
+        # GOOD_WORDS = board_words['good_words'] or ["entry",
+        #               "context",
+        #               "world",
+        #               "flight",
+        #               "payment",
+        #               "medicine",
+        #               "strategy",
+        #               "chest"]
 
-    def get_clue(self,board_words: dict):
-        GOOD_WORDS = board_words['good_words'] or ["entry",
-                      "context",
-                      "world",
-                      "flight",
-                      "payment",
-                      "medicine",
-                      "strategy",
-                      "chest"]
+        # neutral_words = board_words['neutral_words'] or ["student",
+        #                  "movie",
+        #                  "bath",
+        #                  "blood",
+        #                  "poet",
+        #                  "setting",
+        #                  "description",
+        #                  "pollution",
+        #                  "initiative"]
 
-        neutral_words = board_words['neutral_words'] or ["student",
-                         "movie",
-                         "bath",
-                         "blood",
-                         "poet",
-                         "setting",
-                         "description",
-                         "pollution",
-                         "initiative"]
+        # mined = board_words['mined_word'] or ["bedroom"]
 
-        mined = board_words['mined_word'] or ["bedroom"]
+        # BAD_WORDS = board_words['bad_words'] or ["photo",
+        #              "combination",
+        #              "housing",
+        #              "media",
+        #              "vehicle",
+        #              "communication",
+        #              "inspector"]
 
-        BAD_WORDS = board_words['bad_words'] or ["photo",
-                     "combination",
-                     "housing",
-                     "media",
-                     "vehicle",
-                     "communication",
-                     "inspector"]
+        # board_words = GOOD_WORDS + BAD_WORDS + neutral_words + mined
 
-        board_words = GOOD_WORDS + BAD_WORDS + neutral_words + mined
-
-        aimed_words,the_word = self.flow(GOOD_WORDS,BAD_WORDS,mined)
+        aimed_words,the_word = self.flow(good_words,bad_words,mine)
 
         print(the_word,len(aimed_words))
 
@@ -114,7 +116,7 @@ class CodeNamesAgent(object):
         return aim_for_words, list(map(lambda x: good_words[x], aim_for_words))
 
 
-    def flow(self,good_words,bad_words,mined):
+    def flow(self, good_words, bad_words, mine):
         vocabulary = self.reduceVocabulary(good_words)
 
         # set up my words vectors as tensors
@@ -144,7 +146,7 @@ class CodeNamesAgent(object):
             best_combinations[0].item()].item()].item() == combinations_good_words.max().item()
 
         # words which we need to be very far from
-        be_far_from_words = mined + bad_words
+        be_far_from_words = [mine] + bad_words
         away_from_the_vectors = torch.tensor(self.embeddings[be_far_from_words]).to(self.device)
         similarity_of_bed_words = torch.matmul(away_from_the_vectors, full_vocabulary.permute(1, 0))
         # similarity_of_bed_words -= 1
