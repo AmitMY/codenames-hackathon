@@ -5,6 +5,9 @@ import itertools
 import gensim
 import json
 import torch.nn.functional as F
+import copy
+import nltk
+from nltk.stem.snowball import SnowballStemmer
 
 
 # "http://nlp.stanford.edu/data/glove.6B.zip"
@@ -21,6 +24,8 @@ class CodeNamesAgent(object):
 
         self.device = torch.device(cuda_device)
         self.vocabulary = self.embeddings.index2word
+        self.stemmer = SnowballStemmer("english")
+        self.stem_vocabulary = [self.stemmer.stem(word) for word in self.vocabulary]
 
     def get_clue(self, good_words: List[str],
                  bad_words: List[str] = [],
@@ -29,31 +34,41 @@ class CodeNamesAgent(object):
 
         aimed_words, the_word = self.flow(good_words, bad_words, mine, neutral_words)
 
-        print(the_word, len(aimed_words))
+        print(the_word, aimed_words)
 
         return (the_word, len(aimed_words))
 
     # check_capacity()
-
     def reduceVocabulary(self, board_words):
         # Keep only legitimate words in vocabulary
-        new_vocabulary = list(filter(lambda x: "#" not in x and "_" not in x and "_" not in x, self.vocabulary))
-        new_vocabulary = list(filter(lambda x: "/" not in x, new_vocabulary))
-        new_vocabulary = list(filter(lambda x: "@" not in x, new_vocabulary))
-        new_vocabulary = list(filter(lambda x: "." not in x, new_vocabulary))
-        new_vocabulary = list(filter(lambda x: x.lower() not in board_words, new_vocabulary))
-        new_vocabulary = list(filter(lambda x: not x.isupper(), new_vocabulary))
-        new_vocabulary = list(filter(lambda x: not any(c.isupper() for c in x), new_vocabulary))
-        # todo add stemming of words
 
-        v_appear_on_board = []
-        for substring in board_words:
-            v_appear_on_board.extend([string for string in new_vocabulary if substring in string])
+        stemWords = [self.stemmer.stem(word) for word in board_words]
 
-        new_vocabulary = list(filter(lambda x: x not in v_appear_on_board, new_vocabulary))
+        possible_vocabulary = copy.deepcopy(self.vocabulary)
+
+        #         stem_vocabulary = [self.stemmer.stem(word) for word in new_vocabulary]
+        words_to_remove = []
+        for s_w_v, w_v in zip(self.stem_vocabulary, possible_vocabulary):
+            for b in stemWords:
+                if (s_w_v == b):
+                    if w_v in possible_vocabulary:
+                        words_to_remove.append(w_v)
+
+        possible_vocabulary = list(filter(lambda x: x not in words_to_remove, possible_vocabulary))
+
+        possible_vocabulary = list(
+            filter(lambda x: "#" not in x and "_" not in x and "_" not in x, possible_vocabulary))
+        possible_vocabulary = list(filter(lambda x: "/" not in x, possible_vocabulary))
+        possible_vocabulary = list(filter(lambda x: "@" not in x, possible_vocabulary))
+        possible_vocabulary = list(filter(lambda x: "." not in x, possible_vocabulary))
+
+        #     new_vocabulary = list(filter(lambda x: x.lower() not in board_words, new_vocabulary))
+        #     new_vocabulary = list(filter(lambda x: not x.isupper(), new_vocabulary))
+        #     new_vocabulary = list(filter(lambda x: not any(self.isupper() for c in x), new_vocabulary))
+
         # Keep the maximal amount words in the vocabulary
-        new_vocabulary = new_vocabulary[:20000]
-        return new_vocabulary
+        possible_vocabulary = possible_vocabulary[:20000]
+        return possible_vocabulary
 
     def setBinaryMatrix(self, size_of_good_words):
         # it's a binary matrix of size (2^N X N) where N is the my number of words
@@ -75,34 +90,52 @@ class CodeNamesAgent(object):
         the_word = self.vocabulary[word_index]
         return the_word
 
-
-    def wordsAgentAimsFor(self,combinations, best_combination,good_words):
+    def wordsAgentAimsFor(self, combinations, best_combination, good_words):
         aim_for_words = []
         for i, w in enumerate(combinations[best_combination].tolist()):
             if w > 0:
                 aim_for_words.append(i)
         return aim_for_words, list(map(lambda x: good_words[x], aim_for_words))
 
-
-    def flow(self, good_words, bad_words, mine):
-        vocabulary = self.reduceVocabulary(good_words)
+    def flow(self, good_words, bad_words, mine, neutral_words):
+        board_words = good_words + bad_words + [mine] + neutral_words
+        vocabulary = self.reduceVocabulary(board_words)
 
         # set up my words vectors as tensors
         my_words = torch.tensor(self.embeddings[good_words]).to(self.device)
+
         # all other words from vocabulary
         full_vocabulary = torch.tensor(self.embeddings[vocabulary]).to(self.device)
-        # similarities of my words to all other words in the vocabulary
+
+        # words which we need to be very far from
+        be_far_from_words = [mine] + bad_words
+        away_from_the_vectors = torch.tensor(self.embeddings[be_far_from_words]).to(self.device)
+
+        # prepare the vectors for cosine similarity
+        my_words = F.normalize(my_words, p=2, dim=1)
+        full_vocabulary = F.normalize(full_vocabulary, p=2, dim=1)
+        away_from_the_vectors = F.normalize(away_from_the_vectors, p=2, dim=1)
+
         good_words2board_words = torch.matmul(my_words, full_vocabulary.permute(1, 0))
 
         # the mean value of similarity is 0.596. I decide to remove 2 so the mean is negative
-        good_words2board_words -= 1
-        good_words2board_words = good_words2board_words.clamp_max(4)
+        # good_words2board_words = good_words2board_words.clamp_max(3)
+        # good_words2board_words -= 2
+        # good_words2board_words = F.normalize(good_words2board_words, p=2, dim=1)
+        # good_words2board_words = good_words2board_words - good_words2board_words.mean()
+        # good_words2board_words = good_words2board_words / good_words2board_words.std()
+        # good_words2board_words = good_words2board_words.selflamp_max(2)
 
         # set up a matrix of all possible combinations
         combinations = self.setBinaryMatrix(len(good_words))
 
         # get the sum of similarities of all combinations
         combinations_good_words = torch.matmul(combinations, good_words2board_words)
+
+        # average about the number of target words
+        # number_of_target_words = combinations.sum(1).unsqueeze(1).clamp_min(1)
+        # combinations_good_words = combinations_good_words / number_of_target_words
+        # combinations_good_words = combinations_good_words + (combinations_good_words / 10)
 
         # maximal value per word in the vocabulary
         combination_values, combination_best_index = combinations_good_words.max(1)
@@ -113,11 +146,8 @@ class CodeNamesAgent(object):
         assert combinations_good_words[best_combinations[0].item(), combination_best_index[
             best_combinations[0].item()].item()].item() == combinations_good_words.max().item()
 
-        # words which we need to be very far from
-        be_far_from_words = [mine] + bad_words
-        away_from_the_vectors = torch.tensor(self.embeddings[be_far_from_words]).to(self.device)
         similarity_of_bed_words = torch.matmul(away_from_the_vectors, full_vocabulary.permute(1, 0))
-        # similarity_of_bed_words -= 1
+        similarity_of_bed_words[0, :] += 0.1
 
         found_word = False
         for ii, index_of_combination in enumerate(best_combinations.tolist()):
@@ -125,21 +155,14 @@ class CodeNamesAgent(object):
             # check the maximal word to
             word_index = combination_best_index[index_of_combination].item()
             the_word = vocabulary[word_index]
-            print(the_word)
-
-            # for x in board_words:
-            #     if (the_word in x) or (x in the_word):
-            #         print("!!!",x)
-            #         illeagal_word = True
-            #         break
-            # if illeagal_word:
-            #     continue
+            #             print(the_word)
 
             # get word vector
             word_vector = self.embeddings[the_word]
 
             # the words which the agent is trying to convey to its team members
             index_aimed_words, aimed_words = self.wordsAgentAimsFor(combinations, index_of_combination, good_words)
+            #             print(aimed_words)
 
             # get the minimal similarity to our desired words
             similarity_desired_words = good_words2board_words[
@@ -153,20 +176,24 @@ class CodeNamesAgent(object):
                 break
 
         assert found_word
-        return aimed_words,the_word
+        print(aimed_words, the_word)
+        print(similarity_desired_words)
+        print(bad_words)
+        print(similarity_of_bed_words[:, index_of_combination])
+        return (aimed_words, the_word)
 
 
 if __name__ == "__main__":
     c = CodeNamesAgent(gensim_embeddings="../GoogleNews-vectors-negative300.bin")
 
-    GOOD_WORDS = ["entry",
-                  "context",
-                  "world",
-                  "flight",
-                  "payment",
-                  "medicine",
-                  "strategy",
-                  "chest"]
+    good_words = [
+        "dad",
+
+        "library",
+        "way",
+        "selection",
+        "industry",
+        "length"]
 
     neutral_words = ["student",
                      "movie",
@@ -178,9 +205,9 @@ if __name__ == "__main__":
                      "pollution",
                      "initiative"]
 
-    mined = "bedroom"
+    mine = "bedroom"
 
-    BAD_WORDS = ["photo",
+    bad_words = ["photo",
                  "combination",
                  "housing",
                  "media",
@@ -188,11 +215,11 @@ if __name__ == "__main__":
                  "communication",
                  "inspector"]
 
-    # board_words = GOOD_WORDS + BAD_WORDS + neutral_words + mined
+    # board_words = good_words + bad_words + neutral_words + mine
 
     board_words = {}
     board_words['good_words'] = None
     board_words['neutral_words'] = None
-    board_words['mined_word'] = None
+    board_words['mine_word'] = None
     board_words['bad_words'] = None
-    c.get_clue(good_words=GOOD_WORDS, neutral_words=neutral_words, bad_words=BAD_WORDS, mine=mined)
+    c.get_clue(good_words=good_words, neutral_words=neutral_words, bad_words=bad_words, mine=mine)
