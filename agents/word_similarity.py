@@ -4,6 +4,7 @@ import torch
 import itertools
 import gensim
 import json
+import torch.nn.functional as F
 
 
 # "http://nlp.stanford.edu/data/glove.6B.zip"
@@ -25,44 +26,12 @@ class CodeNamesAgent(object):
                  bad_words: List[str] = [],
                  neutral_words: List[str] = [],
                  mine: str = None) -> Tuple[str, int]:
-        # GOOD_WORDS = board_words['good_words'] or ["entry",
-        #               "context",
-        #               "world",
-        #               "flight",
-        #               "payment",
-        #               "medicine",
-        #               "strategy",
-        #               "chest"]
 
-        # neutral_words = board_words['neutral_words'] or ["student",
-        #                  "movie",
-        #                  "bath",
-        #                  "blood",
-        #                  "poet",
-        #                  "setting",
-        #                  "description",
-        #                  "pollution",
-        #                  "initiative"]
+        aimed_words, the_word = self.flow(good_words, bad_words, mine, neutral_words)
 
-        # mined = board_words['mined_word'] or ["bedroom"]
+        print(the_word, len(aimed_words))
 
-        # BAD_WORDS = board_words['bad_words'] or ["photo",
-        #              "combination",
-        #              "housing",
-        #              "media",
-        #              "vehicle",
-        #              "communication",
-        #              "inspector"]
-
-        # board_words = GOOD_WORDS + BAD_WORDS + neutral_words + mined
-
-        aimed_words,the_word = self.flow(good_words,bad_words,mine)
-
-        print(the_word,len(aimed_words))
-
-        return (the_word,len(aimed_words))
-
-
+        return (the_word, len(aimed_words))
 
     # check_capacity()
 
@@ -75,6 +44,7 @@ class CodeNamesAgent(object):
         new_vocabulary = list(filter(lambda x: x.lower() not in board_words, new_vocabulary))
         new_vocabulary = list(filter(lambda x: not x.isupper(), new_vocabulary))
         new_vocabulary = list(filter(lambda x: not any(c.isupper() for c in x), new_vocabulary))
+        # todo add stemming of words
 
         v_appear_on_board = []
         for substring in board_words:
@@ -85,18 +55,16 @@ class CodeNamesAgent(object):
         new_vocabulary = new_vocabulary[:20000]
         return new_vocabulary
 
-
-    def setBinaryMatrix(self,size_of_good_words):
+    def setBinaryMatrix(self, size_of_good_words):
         # it's a binary matrix of size (2^N X N) where N is the my number of words
         combinations = list(map(list, itertools.product([0, 1], repeat=size_of_good_words)))
         # flip combinations to ve aligned with the GOOD words
         combinations = list(map(lambda x: x[::-1], combinations))
-        combinations = list(filter(lambda x: sum(x) < self.MAXIMAL_SIZE_OF_COMBINATIONS, combinations))
+        # combinations = list(filter(lambda x: sum(x) < self.MAXIMAL_SIZE_OF_COMBINATIONS, combinations))
         combinations = torch.tensor(combinations).to(device=self.device).float()
         return combinations
 
-
-    def getBestWordForCombination(self,index, combinations, combination_best_index, good_words):
+    def getBestWordForCombination(self, index, combinations, combination_best_index, good_words):
         comb = combinations[index].tolist()
         words = []
         for i, w in zip(comb, good_words):
@@ -171,7 +139,7 @@ class CodeNamesAgent(object):
             word_vector = self.embeddings[the_word]
 
             # the words which the agent is trying to convey to its team members
-            index_aimed_words, aimed_words = self.wordsAgentAimsFor(combinations, index_of_combination,good_words)
+            index_aimed_words, aimed_words = self.wordsAgentAimsFor(combinations, index_of_combination, good_words)
 
             # get the minimal similarity to our desired words
             similarity_desired_words = good_words2board_words[
@@ -189,10 +157,42 @@ class CodeNamesAgent(object):
 
 
 if __name__ == "__main__":
-    c = CodeNamesAgent()
+    c = CodeNamesAgent(gensim_embeddings="../GoogleNews-vectors-negative300.bin")
+
+    GOOD_WORDS = ["entry",
+                  "context",
+                  "world",
+                  "flight",
+                  "payment",
+                  "medicine",
+                  "strategy",
+                  "chest"]
+
+    neutral_words = ["student",
+                     "movie",
+                     "bath",
+                     "blood",
+                     "poet",
+                     "setting",
+                     "description",
+                     "pollution",
+                     "initiative"]
+
+    mined = "bedroom"
+
+    BAD_WORDS = ["photo",
+                 "combination",
+                 "housing",
+                 "media",
+                 "vehicle",
+                 "communication",
+                 "inspector"]
+
+    # board_words = GOOD_WORDS + BAD_WORDS + neutral_words + mined
+
     board_words = {}
     board_words['good_words'] = None
     board_words['neutral_words'] = None
     board_words['mined_word'] = None
     board_words['bad_words'] = None
-    c.get_clue(board_words)
+    c.get_clue(good_words=GOOD_WORDS, neutral_words=neutral_words, bad_words=BAD_WORDS, mine=mined)
