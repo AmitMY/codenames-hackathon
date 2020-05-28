@@ -1,15 +1,18 @@
 import pyrebase
-
+import importlib
 from argparse import ArgumentParser
-
+# import agents.word_similarity
+# import agents.word_similarity
 from agents.dummy import DummyCodenamesAgent
-
 parser = ArgumentParser(add_help=False)
 parser.add_argument('--board_id', type=str, help='ID like c45xs32b', required=True)
 parser.add_argument('--team', type=str, default="both", choices=["red", "blue", "both"], help='random seed')
+parser.add_argument('--agent_filename', type=str, default="agents/w2v_cosine.py", help='agent file name')
 args = parser.parse_args()
 
-agent = DummyCodenamesAgent()
+# agent = DummyCodenamesAgent()
+code_file = importlib.import_module(args.agent_filename.replace('.py', '').replace('/', '.'))
+agent = code_file.CodeNamesAgent()
 
 firebase = pyrebase.initialize_app({
     "apiKey": "",
