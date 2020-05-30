@@ -10,18 +10,16 @@ import nltk
 from nltk.stem.snowball import SnowballStemmer
 
 
-# "http://nlp.stanford.edu/data/glove.6B.zip"
-# "./glove.6B.zip"
-# glove = KeyedVectors.load_word2vec_format("gensim_glove_vectors.txt")
-
 class CodeNamesAgent(object):
     def __init__(self,
                  cuda_device: int = 0,
-                 gensim_embeddings: str = 'GoogleNews-vectors-negative300.bin',
+                 gensim_embeddings: str = 'embeddings/glove.42B.300d.w2vformat.txt',
                  maximal_combination_size: int = 999) -> None:
         self.MAXIMAL_SIZE_OF_COMBINATIONS = maximal_combination_size
-        self.embeddings = gensim.models.KeyedVectors.load_word2vec_format(gensim_embeddings, binary=True)
-
+        if "glove" in gensim_embeddings:
+            self.embeddings = gensim.models.KeyedVectors.load_word2vec_format(gensim_embeddings, limit=200000)
+        else:
+            self.embeddings = gensim.models.KeyedVectors.load_word2vec_format(gensim_embeddings, binary=True)
         self.device = torch.device(cuda_device)
         self.vocabulary = self.embeddings.index2word
         self.stemmer = SnowballStemmer("english")
@@ -31,7 +29,10 @@ class CodeNamesAgent(object):
                  bad_words: List[str] = [],
                  neutral_words: List[str] = [],
                  mine: str = None) -> Tuple[str, int]:
-
+        if type(mine) is str:
+            mine = [mine]
+        else:
+            mine = []
         aimed_words, the_word = self.flow(good_words, bad_words, mine, neutral_words)
 
         print(the_word, aimed_words)
@@ -98,7 +99,7 @@ class CodeNamesAgent(object):
         return aim_for_words, list(map(lambda x: good_words[x], aim_for_words))
 
     def flow(self, good_words, bad_words, mine, neutral_words):
-        board_words = good_words + bad_words + [mine] + neutral_words
+        board_words = good_words + bad_words + mine + neutral_words
         vocabulary = self.reduceVocabulary(board_words)
 
         # set up my words vectors as tensors
@@ -108,7 +109,7 @@ class CodeNamesAgent(object):
         full_vocabulary = torch.tensor(self.embeddings[vocabulary]).to(self.device)
 
         # words which we need to be very far from
-        be_far_from_words = [mine] + bad_words
+        be_far_from_words = mine + bad_words
         away_from_the_vectors = torch.tensor(self.embeddings[be_far_from_words]).to(self.device)
 
         # prepare the vectors for cosine similarity
@@ -184,7 +185,7 @@ class CodeNamesAgent(object):
 
 
 if __name__ == "__main__":
-    c = CodeNamesAgent(gensim_embeddings="../GoogleNews-vectors-negative300.bin")
+    c = CodeNamesAgent(gensim_embeddings="embeddings/glove.42B.300d.w2vformat.txt")
 
     good_words = [
         "dad",
