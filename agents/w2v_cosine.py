@@ -110,33 +110,20 @@ class CodeNamesAgent(object):
 
         # words which we need to be very far from
         be_far_from_words = mine + bad_words
-        away_from_the_vectors = torch.tensor(self.embeddings[be_far_from_words]).to(self.device)
+        away_from_these_vectors = torch.tensor(self.embeddings[be_far_from_words]).to(self.device)
 
         # prepare the vectors for cosine similarity
         my_words = F.normalize(my_words, p=2, dim=1)
         full_vocabulary = F.normalize(full_vocabulary, p=2, dim=1)
-        away_from_the_vectors = F.normalize(away_from_the_vectors, p=2, dim=1)
+        away_from_these_vectors = F.normalize(away_from_these_vectors, p=2, dim=1)
 
         good_words2board_words = torch.matmul(my_words, full_vocabulary.permute(1, 0))
-
-        # the mean value of similarity is 0.596. I decide to remove 2 so the mean is negative
-        # good_words2board_words = good_words2board_words.clamp_max(3)
-        # good_words2board_words -= 2
-        # good_words2board_words = F.normalize(good_words2board_words, p=2, dim=1)
-        # good_words2board_words = good_words2board_words - good_words2board_words.mean()
-        # good_words2board_words = good_words2board_words / good_words2board_words.std()
-        # good_words2board_words = good_words2board_words.selflamp_max(2)
 
         # set up a matrix of all possible combinations
         combinations = self.setBinaryMatrix(len(good_words))
 
         # get the sum of similarities of all combinations
         combinations_good_words = torch.matmul(combinations, good_words2board_words)
-
-        # average about the number of target words
-        # number_of_target_words = combinations.sum(1).unsqueeze(1).clamp_min(1)
-        # combinations_good_words = combinations_good_words / number_of_target_words
-        # combinations_good_words = combinations_good_words + (combinations_good_words / 10)
 
         # maximal value per word in the vocabulary
         combination_values, combination_best_index = combinations_good_words.max(1)
@@ -147,9 +134,11 @@ class CodeNamesAgent(object):
         assert combinations_good_words[best_combinations[0].item(), combination_best_index[
             best_combinations[0].item()].item()].item() == combinations_good_words.max().item()
 
-        similarity_of_bed_words = torch.matmul(away_from_the_vectors, full_vocabulary.permute(1, 0))
+        similarity_of_bed_words = torch.matmul(away_from_these_vectors, full_vocabulary.permute(1, 0))
+        # add extra points to the bed words
         similarity_of_bed_words[0, :] += 0.1
 
+        # Go over all combinations and find the best combination which isn't close to the bed close
         found_word = False
         for ii, index_of_combination in enumerate(best_combinations.tolist()):
             if index_of_combination == 0: continue
@@ -159,7 +148,7 @@ class CodeNamesAgent(object):
             #             print(the_word)
 
             # get word vector
-            word_vector = self.embeddings[the_word]
+            # word_vector = self.embeddings[the_word]
 
             # the words which the agent is trying to convey to its team members
             index_aimed_words, aimed_words = self.wordsAgentAimsFor(combinations, index_of_combination, good_words)
@@ -176,12 +165,14 @@ class CodeNamesAgent(object):
                 found_word = True
                 break
 
-        assert found_word
-        print(aimed_words, the_word)
-        print(similarity_desired_words)
-        print(bad_words)
-        print(similarity_of_bed_words[:, index_of_combination])
-        return (aimed_words, the_word)
+        if found_word:
+            print(aimed_words, the_word)
+            print(similarity_desired_words)
+            print(bad_words)
+            print(similarity_of_bed_words[:, index_of_combination])
+            return (aimed_words, the_word)
+        else:
+            return ([], "dummy")
 
 
 if __name__ == "__main__":
