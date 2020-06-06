@@ -16,12 +16,12 @@ grandparentdir = os.path.dirname(parentdir)
 sys.path.insert(0,grandparentdir)
 
 # from agents.dummy import DummyCodenamesAgent
-from agents import w2v_cosine
+from agents import embeddings_cosine
 from argparse import ArgumentParser
 import importlib
 
 parser = ArgumentParser(add_help=False)
-parser.add_argument('--agent_filename', type=str, default="aevalgents/w2v_cosine.py", help='agent file name')
+parser.add_argument('--agent_filename', type=str, default="aevalgents/embeddings_cosine.py", help='agent file name')
 parser.add_argument('--data_file', type=str, default="./data.json", help='data file name')
 args = parser.parse_args()
 

@@ -7,7 +7,7 @@ from agents.dummy import DummyCodenamesAgent
 parser = ArgumentParser(add_help=False)
 parser.add_argument('--board_id', type=str, help='ID like c45xs32b', required=True)
 parser.add_argument('--team', type=str, default="both", choices=["red", "blue", "both"], help='random seed')
-parser.add_argument('--agent_filename', type=str, default="agents/w2v_cosine.py", help='agent file name')
+parser.add_argument('--agent_filename', type=str, default="agents/embeddings_cosine.py", help='agent file name')
 args = parser.parse_args()
 
 # agent = DummyCodenamesAgent()
