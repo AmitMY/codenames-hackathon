@@ -48,6 +48,8 @@ def board_changed(message):
     if not clue and is_team(turn["color"]) and turn["isSpymaster"]:
         print("OUR TURN")
         words = [w for w in data["words"] if not w["revealed"]]
+        for w in words:
+            w["word"] = w["word"].lower()
         good_words = [w["word"] for w in words if w["color"] == turn["color"]]
         not_bad_color = {"yellow", "black", turn["color"]}
         bad_words = [w["word"] for w in words if w["color"] not in not_bad_color]
