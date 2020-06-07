@@ -172,7 +172,7 @@ class CodeNamesAgent(object):
             print(similarity_of_bed_words[:, index_of_combination])
             return (aimed_words, the_word)
         else:
-            return ([], "dummy")
+            return (["None"], "dummy")
 
 
 if __name__ == "__main__":
