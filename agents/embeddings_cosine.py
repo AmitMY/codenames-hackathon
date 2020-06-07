@@ -13,7 +13,7 @@ from nltk.stem.snowball import SnowballStemmer
 class CodeNamesAgent(object):
     def __init__(self,
                  cuda_device: int = 0,
-                 gensim_embeddings: str = 'embeddings/glove.42B.300d.w2vformat.txt',
+                 gensim_embeddings: str = '/home/nlp/osabo/codeNames/embeddings/glove.42B.300d.w2vformat.txt',
                  maximal_combination_size: int = 999) -> None:
         self.MAXIMAL_SIZE_OF_COMBINATIONS = maximal_combination_size
         if "glove" in gensim_embeddings:
