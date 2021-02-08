@@ -8,7 +8,7 @@ docutils==0.15.2
 gcloud==0.18.3
 gensim==3.8.3
 googleapis-common-protos==1.51.0
-httplib2==0.17.3
+httplib2==0.19.0
 idna==2.9
 jax==0.1.64
 jaxlib==0.1.45
